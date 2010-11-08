@@ -4,7 +4,7 @@
 #
 
 # Kelsey Jordahl
-# Time-stamp: <Mon Nov  8 17:19:29 EST 2010>
+# Time-stamp: <Mon Nov  8 17:50:16 EST 2010>
 
 import sys
 import psycopg2
@@ -17,9 +17,9 @@ infofile = file + ".inf"
 navfile = file + ".fnv"
 print navfile
 schema = "multibeam"
-table = "test"
+shorttable = "test"
 # concatenate schema.table
-table = schema + "." + table
+table = schema + "." + shorttable
 
 
 # open the .inf file
@@ -48,12 +48,17 @@ except:
 cursor.execute("BEGIN;")
 sql = "DROP TABLE IF EXISTS " + table + ";"
 cursor.execute(sql)
-sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, track GEOGRAPHY);"
+# for GEOGRAPHY
+#sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, track GEOGRAPHY);"
+# for GEOMETRY
+sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY);"
 cursor.execute(sql);
-sql = "INSERT INTO " + table + " (file_id, track)"
+sql = "SELECT AddGeometryColumn('" + schema + "','" + shorttable + "','the_geom','4326','GEOMETRY',2);"
+cursor.execute(sql);
+sql = "INSERT INTO " + table + " (file_id, the_geom)"
 #cursor.execute("VALUES (1,ST_Geometry('LINESTRING(")
 
-sql = sql + " VALUES (1,ST_Geometry('LINESTRING("
+sql = sql + " VALUES (1,ST_GeomFromText('LINESTRING("
 first = 1;
 
 # parse the file
@@ -61,23 +66,40 @@ for line in f:
     # can the type be set in split?
 #    (year,month,day,hour,minute,second,x,lon,lat,q,w,y)=line.split();
     fields=line.split();
-    print fields[1]
+    if len(fields)>9:
+        year=int(fields[0])
+        month=int(fields[1])
+        day=int(fields[2])
+        hour=int(fields[3])
+        minute=int(fields[4])
+        second=float(fields[5])
+        
+        d = date(year, month, day)
+        t = time(hour, minute, int(second)) # second is float, round it
+        lon=float(fields[7])
+        lat=float(fields[8])
 
-    d = date(int(year), int(month), int(day))
-    t = time(int(hour), int(minute), int(float(second))) # second is float, round it
-#    print(hour, minute, second)
-#    print datetime.combine(d, t), float(lat), float(lon)
-    #    print line,
-    if first:
-        first=0
+        #    print(hour, minute, second)
+        #    print datetime.combine(d, t), float(lat), float(lon)
+        #    print line,
+        if first:
+            first=0
+        else:
+            sql = sql + ","
+        sql = sql + str(lon) + " " + str(lat)
     else:
-        sql = sql + ","
-    sql = sql + lon + " " + lat
+        print len(fields), fields
 
-sql = sql + ")'));"
-cursor.execute(sql);
-conn.commit()
-cursor.close()
-conn.close()
+try:
+    sql = sql + ")',4326));"
+    cursor.execute(sql);
+    conn.commit()
+    cursor.close()
+    conn.close()
 
-#print sql
+except:
+    #    print sql
+    print datetime.combine(d, t), float(lon), float(lat)
+    
+    exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
+    sys.exit("Barf!\n ->%s" % (exceptionValue)) 
