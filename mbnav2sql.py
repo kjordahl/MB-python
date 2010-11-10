@@ -4,14 +4,15 @@
 #
 
 # Kelsey Jordahl
-# Time-stamp: <Mon Nov  8 19:05:21 EST 2010>
+# Time-stamp: <Wed Nov 10 16:16:27 EST 2010>
 
 import sys
 import psycopg2
 from datetime import datetime, date, time
 
 #datadir = "/Users/kels/DOTS/VANC04MV/"
-datadir = "/Users/kels/MB-SystemExamples.5.1.0/cookbook_examples/other_data_sets/ew0204survey/"
+#datadir = "/Users/kels/MB-SystemExamples.5.1.0/cookbook_examples/other_data_sets/ew0204survey/"
+datadir = ""
 datalist = datadir + "datalist.mb-1"
 schema = "multibeam"
 shorttable = "test"
@@ -25,7 +26,7 @@ except:
     sys.exit("File open failed!\n ->%s" % (exceptionValue))
 
 # connect to PostGIS database
-conn_string = "host='localhost' dbname='gis_test' user='kels'"
+conn_string = "host='chipotle' dbname='gis_test' user='kels'"
 print "Connecting to database\n	->%s" % (conn_string)
 try:
     conn = psycopg2.connect(conn_string)
@@ -39,15 +40,18 @@ except:
 #CREATE SCHEMA multibeam AUTHORIZATION kels;   # if schema doesn't exist
 cursor.execute("BEGIN;")
 sql = "DROP TABLE IF EXISTS " + table + ";"
+print sql
 cursor.execute(sql)
 # for GEOGRAPHY
 #sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, track GEOGRAPHY);"
 # for GEOMETRY
 sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY);"
 cursor.execute(sql);
+print sql
 sql = "SELECT AddGeometryColumn('" + schema + "','" + shorttable + "','the_geom','4326','GEOMETRY',2);"
+print sql
 cursor.execute(sql);
-    
+
 id = 1;
 for line in d:
     # can the type be set in split?
@@ -75,6 +79,7 @@ for line in d:
     sql = "INSERT INTO " + table + " (file_id, the_geom)"
 
     sql = sql + " VALUES (" + str(id) + ",ST_GeomFromText('LINESTRING("
+#    sql = sql + " VALUES (" + str(id) + ",ST_GeomFromText('POINT("
     first = 1;
 
     # parse the .fnv file
@@ -91,7 +96,9 @@ for line in d:
             d = date(year, month, day)
             t = time(hour, minute, int(second)) # second is float, round it
             lon=float(fields[7])
-            lat=float(fields[8])
+            if lon<0:                   # wrap eastern hemisphere
+                lon = lon + 360
+            lat=fields[8]
 
             # for testing
             #    print(hour, minute, second)
@@ -99,9 +106,14 @@ for line in d:
             #    print line,
             if first:
                 first=0
+                print "%0.6f %s" % (lon, lat)
+#                sql = sql + "%f %f" % (lon, lat)
             else:
                 sql = sql + ","
-            sql = sql + str(lon) + " " + str(lat)
+            # as floats
+            #            sql = sql + "%f %f" % (lon, lat)
+            # as strings
+            sql = sql + "%s %s" % (lon, lat)
         else:
             print len(fields), fields
 
