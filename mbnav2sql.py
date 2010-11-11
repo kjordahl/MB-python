@@ -4,7 +4,7 @@
 #
 
 # Kelsey Jordahl
-# Time-stamp: <Wed Nov 10 16:16:27 EST 2010>
+# Time-stamp: <Thu Nov 11 10:35:47 EST 2010>
 
 import sys
 import psycopg2
@@ -18,6 +18,7 @@ schema = "multibeam"
 shorttable = "test"
 # concatenate schema.table
 table = schema + "." + shorttable
+badnav = 0
 
 try:
     d = open(datalist,'r')
@@ -72,59 +73,76 @@ for line in d:
     try:
         f = open(navfile,'r')
 
+        sql = "INSERT INTO " + table + " (file_id, the_geom)"
+
+        sql = sql + " VALUES (" + str(id) + ",ST_GeomFromText('LINESTRING("
+#    sql = sql + " VALUES (" + str(id) + ",ST_GeomFromText('POINT("
+        linecount = 0;
+
+        # parse the .fnv file
+        for line in f:
+            fields=line.split();
+            if len(fields)>9:               # minimal error checking
+                year=int(fields[0])
+                month=int(fields[1])
+                day=int(fields[2])
+                hour=int(fields[3])
+                minute=int(fields[4])
+                second=float(fields[5])
+
+                d = date(year, month, day)
+                t = time(hour, minute, int(second)) # second is float, round it
+                lon=float(fields[7])
+                if lon<0:                   # wrap eastern hemisphere
+                    lon = lon + 360
+                lat=fields[8]
+
+                # for testing
+                #    print(hour, minute, second)
+                #    print datetime.combine(d, t), float(lat), float(lon)
+                #    print line,
+                if linecount == 0:
+                    print "%0.6f %s" % (lon, lat)
+#                sql = sql + "%f %f" % (lon, lat)
+                else:
+                    sql = sql + ","
+                # as floats
+                #            sql = sql + "%f %f" % (lon, lat)
+                # as strings
+                if lon < 1 and (abs(lat) < 1 or lat < -89):
+                    print "Bad nav point"
+                    badnav = badnav + 1;
+                else:
+                    sql = sql + "%s %s" % (lon, lat)
+                    linecount = linecount + 1;
+            else:
+                print len(fields), fields
+
+        sql = sql + ")',4326));"
+        
+        # only insert into database if at least 2 nav points were read
+        if linecount > 1:
+            try:
+                cursor.execute(sql);
+            except:
+                exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
+                sys.exit("SQL command failed!\n ->%s" % (exceptionValue))
+
+            id = id + 1
+        else:
+            print "only %d line read - not included in database" % linecount
+
     except:
         exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
-        sys.exit("File open failed!\n ->%s" % (exceptionValue))
+#        sys.exit("File open failed!\n ->%s" % (exceptionValue))
+        print("File open failed!\n ->%s" % (exceptionValue))
 
-    sql = "INSERT INTO " + table + " (file_id, the_geom)"
-
-    sql = sql + " VALUES (" + str(id) + ",ST_GeomFromText('LINESTRING("
-#    sql = sql + " VALUES (" + str(id) + ",ST_GeomFromText('POINT("
-    first = 1;
-
-    # parse the .fnv file
-    for line in f:
-        fields=line.split();
-        if len(fields)>9:               # minimal error checking
-            year=int(fields[0])
-            month=int(fields[1])
-            day=int(fields[2])
-            hour=int(fields[3])
-            minute=int(fields[4])
-            second=float(fields[5])
-        
-            d = date(year, month, day)
-            t = time(hour, minute, int(second)) # second is float, round it
-            lon=float(fields[7])
-            if lon<0:                   # wrap eastern hemisphere
-                lon = lon + 360
-            lat=fields[8]
-
-            # for testing
-            #    print(hour, minute, second)
-            #    print datetime.combine(d, t), float(lat), float(lon)
-            #    print line,
-            if first:
-                first=0
-                print "%0.6f %s" % (lon, lat)
-#                sql = sql + "%f %f" % (lon, lat)
-            else:
-                sql = sql + ","
-            # as floats
-            #            sql = sql + "%f %f" % (lon, lat)
-            # as strings
-            sql = sql + "%s %s" % (lon, lat)
-        else:
-            print len(fields), fields
-
-    sql = sql + ")',4326));"
-    cursor.execute(sql);
-    id = id + 1
 
 try:
     conn.commit()
     cursor.close()
     conn.close()
+    print "%d bad nav points ignored" % badnav
 
 except:
     print datetime.combine(d, t), float(lon), float(lat)
