@@ -6,7 +6,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Thu Nov 11 16:05:55 EST 2010>
+Time-stamp: <Thu Nov 11 21:41:36 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -25,8 +25,10 @@ Time-stamp: <Thu Nov 11 16:05:55 EST 2010>
 import sys
 import psycopg2
 from datetime import datetime, date, time
+BADNAV = 0                              # global
 
 def main():
+    global BADNAV                       # poor form
     # TODO: make these defaults and take command line options
     #datadir = "/Users/kels/DOTS/VANC04MV/"
     #datadir = "/Users/kels/MB-SystemExamples.5.1.0/cookbook_examples/other_data_sets/ew0204survey/"
@@ -36,7 +38,6 @@ def main():
     shorttable = "test"
     # concatenate schema.table
     table = schema + "." + shorttable
-    badnav = 0
 
     try:
         d = open(datalist,'r')
@@ -96,16 +97,18 @@ def main():
         conn.commit()
         cursor.close()
         conn.close()
-        print "%d bad nav points ignored" % badnav
+        print "%d bad nav points ignored" % BADNAV
 
     except:
-        print datetime.combine(d, t), float(lon), float(lat)
+        #        print datetime.combine(d, t), float(lon), float(lat)
         exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
         sys.exit("Barf!\n ->%s" % (exceptionValue)) 
 
 # end main()
 
 def parse_fnv(navfile,table,id):
+    global BADNAV
+    point = ""
     """ Parse a .fnv fast nav file and return a line of SQL code to
     INSERT into database.  Currently the database name is a global
     variable, that should change.
@@ -137,6 +140,7 @@ def parse_fnv(navfile,table,id):
             else:
                 sql = sql + "," + point
             linecount = linecount + 1
+    f.close()
     sql = sql + ")',4326));"
     if linecount > 1:
         return sql
