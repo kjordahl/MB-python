@@ -6,7 +6,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Fri Nov 12 14:24:00 EST 2010>
+Time-stamp: <Fri Nov 12 17:49:39 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -66,7 +66,7 @@ def main():
     # for GEOGRAPHY
     #sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, track GEOGRAPHY);"
     # for GEOMETRY
-    sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, filename VARCHAR(50), directory VARCHAR(200));"
+    sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, filename VARCHAR(50), directory VARCHAR(200), mbformat INT);"
     cursor.execute(sql);
     print sql
     sql = "SELECT AddGeometryColumn('" + schema + "','" + shorttable + "','the_geom','4326','GEOMETRY',2);"
@@ -79,10 +79,10 @@ def main():
         #    (year,month,day,hour,minute,second,x,lon,lat,q,w,y)=line.split();
         fields = line.split();
         file = datadir + fields[0];
-        infofile = file + ".inf"
-        navfile = file + ".fnv"
-        print navfile
-        sql = parse_fnv(navfile,table,id)
+        mbformat = fields[1];
+#        infofile = file + ".inf"
+#        print navfile
+        sql = parse_fnv(file,table,id,mbformat) # passing too many parameters
 
         # only insert into database if valid string is returned
         if sql:
@@ -107,14 +107,17 @@ def main():
 
 # end main()
 
-def parse_fnv(navfile,table,id):
+def parse_fnv(datafile,table,id,mbformat):
     global BADNAV
     point = ""
     """ Parse a .fnv fast nav file and return a line of SQL code to
     INSERT into database.  Currently the database name is a global
     variable, that should change.
     """
-    # open the .fbt file
+
+    navfile = datafile + ".fnv"
+    print navfile
+    # open the .fnv file
     try:
         f = open(navfile,'r')
     except:
@@ -124,8 +127,9 @@ def parse_fnv(navfile,table,id):
         f = []                          # make empty list to iterate over
 #         sys.exit("File open failed!\n ->%s" % (exceptionValue))
 
-    sql = "INSERT INTO " + table + " (file_id, filename, directory, the_geom)"
-    sql = sql + " VALUES (" + str(id) + ",'" + os.path.basename(navfile) + "','" + os.path.dirname(navfile) + "',ST_GeomFromText('LINESTRING("
+    sql = "INSERT INTO " + table + " (file_id, filename, directory, mbformat, the_geom)"
+    # TODO fix ugly formatting string
+    sql = sql + " VALUES (" + str(id) + ",'" + os.path.basename(datafile) + "','" + os.path.dirname(navfile) + "'," + mbformat + ",ST_GeomFromText('LINESTRING("
     #    sql = sql + " VALUES (" + str(id) + "'" + os.path.basename(path) + "','" + + "',ST_GeomFromText('POINT("
     linecount = 0;
 
@@ -153,27 +157,31 @@ def parse_fnv(navfile,table,id):
         return sql
         id = id + 1
     else:
-        print "only %d line read - not included in database" % linecount
+        print "%d line(s) read - not included in database" % linecount
         return ""
 
 # end parse_fnv
         
 def get_navpoint(line):
-    """ Parse a line of .fbt file to return longitude, latitude, Python time
+    """ Parse a line of .fnv file to return longitude, latitude, Python time
 
     """
-
+    
+    t = 0                               # no timestamp (faster parsing)
     fields=line.split();
     if len(fields)>9:               # minimal error checking
-        year=int(fields[0])
-        month=int(fields[1])
-        day=int(fields[2])
-        hour=int(fields[3])
-        minute=int(fields[4])
-        second=float(fields[5])
+        if t:                       # get timestamp
+            year=int(fields[0])
+            month=int(fields[1])
+            day=int(fields[2])
+            hour=int(fields[3])
+            minute=int(fields[4])
+            second=int(fields[5].floor)
+            microsecond=(float(fields[5])-second)*1e6
+            d = date(year, month, day)
+            t = time(hour, minute, second, microsecond)
+            t = datetime.combine(d, t)
 
-        d = date(year, month, day)
-        t = time(hour, minute, int(second)) # second is float, round it
         lon=float(fields[7])
         if lon < 0:                   # wrap eastern hemisphere
             lon = lon + 360
