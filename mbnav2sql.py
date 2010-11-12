@@ -6,7 +6,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Thu Nov 11 21:41:36 EST 2010>
+Time-stamp: <Fri Nov 12 14:24:00 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -23,6 +23,7 @@ Time-stamp: <Thu Nov 11 21:41:36 EST 2010>
 """
 
 import sys
+import os
 import psycopg2
 from datetime import datetime, date, time
 BADNAV = 0                              # global
@@ -65,7 +66,7 @@ def main():
     # for GEOGRAPHY
     #sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, track GEOGRAPHY);"
     # for GEOMETRY
-    sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY);"
+    sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, filename VARCHAR(50), directory VARCHAR(200));"
     cursor.execute(sql);
     print sql
     sql = "SELECT AddGeometryColumn('" + schema + "','" + shorttable + "','the_geom','4326','GEOMETRY',2);"
@@ -115,32 +116,38 @@ def parse_fnv(navfile,table,id):
     """
     # open the .fbt file
     try:
-         f = open(navfile,'r')
+        f = open(navfile,'r')
     except:
-         exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
-         sys.exit("File open failed!\n ->%s" % (exceptionValue))
+        # no need to crash - just warn
+        exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
+        print "WARNING: File open failed!\n ->%s" % (exceptionValue)
+        f = []                          # make empty list to iterate over
+#         sys.exit("File open failed!\n ->%s" % (exceptionValue))
 
-    sql = "INSERT INTO " + table + " (file_id, the_geom)"
-    sql = sql + " VALUES (" + str(id) + ",ST_GeomFromText('LINESTRING("
-    #    sql = sql + " VALUES (" + str(id) + ",ST_GeomFromText('POINT("
+    sql = "INSERT INTO " + table + " (file_id, filename, directory, the_geom)"
+    sql = sql + " VALUES (" + str(id) + ",'" + os.path.basename(navfile) + "','" + os.path.dirname(navfile) + "',ST_GeomFromText('LINESTRING("
+    #    sql = sql + " VALUES (" + str(id) + "'" + os.path.basename(path) + "','" + + "',ST_GeomFromText('POINT("
     linecount = 0;
 
     # parse the .fnv file
-    for line in f:
-        (lat, lon, t) = get_navpoint(line);
-        if lon < 1 and (abs(lat) < 1 or lat < -89):
-            print "Bad nav point"
-            BADNAV = BADNAV + 1;        # increment GLOBAL bad nav count
-        else:
-            point = "%s %s" % (lon, lat)
-
-        if point:
-            if linecount == 0:
-                sql = sql + point
+    try:
+        for line in f:
+            (lat, lon, t) = get_navpoint(line);
+            if lon < 1 and (abs(lat) < 1 or lat < -89):
+                print "Bad nav point"
+                BADNAV = BADNAV + 1;        # increment GLOBAL bad nav count
             else:
-                sql = sql + "," + point
-            linecount = linecount + 1
-    f.close()
+                point = "%s %s" % (lon, lat)
+                
+            if point:
+                if linecount == 0:
+                    sql = sql + point
+                else:
+                    sql = sql + "," + point
+                linecount = linecount + 1
+    finally:
+        if isinstance(f,file):
+            f.close()
     sql = sql + ")',4326));"
     if linecount > 1:
         return sql
