@@ -6,7 +6,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Thu Nov 18 15:06:37 EST 2010>
+Time-stamp: <Fri Nov 19 08:12:27 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -54,11 +54,15 @@ def main(args):
         fields = line.split();
         if fields:
             d = mb.Datafile(fields[0]);
+            d.useproc()
             if d.inffile:
                 print "Records:", d.records
                 records += d.records
                 print "starttime:", d.starttime
                 print "endtime:", d.endtime
+                print "procfile:", d.procfile
+                print "NAVDRAFT:", d.parameter('NAVDRAFT')
+                print "EDITSAVEFILE:", d.parameter('EDITSAVEFILE')
             else:
                 print "no inffile for", d.filename
                 print "starttime:", d.starttime

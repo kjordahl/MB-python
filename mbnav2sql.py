@@ -6,7 +6,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Thu Nov 18 22:43:02 EST 2010>
+Time-stamp: <Fri Nov 19 09:42:36 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -89,16 +89,20 @@ def main(args):
         fields = line.split();
         if fields:
             d = mb.Datafile(fields[0]);
+            if not args.unproc:
+                d.useproc()  # use processed files unless specified otherwise
             print "file", id, "of", numfiles, ":", os.path.basename(d.filename)
             if d.inffile:
-                print "Records:", d.records
                 records += d.records
-                print "starttime:", d.starttime
-                print "endtime:", d.endtime
+                if args.verbose:
+                    print "Records:", d.records
+                    print "starttime:", d.starttime
+                    print "endtime:", d.endtime
             else:
                 print "no inffile for", d.filename
             d.setformat(fields[1])
-            print "MB format:", d.format, "\n"
+            if args.verbose:
+                print "MB format:", d.format, "\n"
         sql = d.sql(fulltable)
 
         # only insert into database if valid string is returned
@@ -109,7 +113,9 @@ def main(args):
                 exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
                 sys.exit("SQL command failed!\n ->%s" % (exceptionValue))
 
-            id = id + 1
+            id += 1
+        else:
+            numfiles -= 1               # don't count in total
 
     try:
         conn.commit()
@@ -127,12 +133,13 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='add MB data files to PostGIS database')
 #    parser.add_argument('-o', '--output')
-    parser.add_argument('-v', dest='verbose', action='store_true')
+    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='verbose output')
     parser.add_argument('-H', '--hostname', dest='hostname', default='localhost', help='postgreSQL server hostname (default "localhost")')
     parser.add_argument('-s', '--schema', dest='schema', default='multibeam', help='postgreSQL schema (default "multibeam")')
     parser.add_argument('-d', '--dbname', dest='dbname', default='gis_test', help='postgreSQL database name (default "gis_test")')
     parser.add_argument('-t', '--table', dest='table', default='datafiles', help='postgreSQL table name (default "datafiles")')
     parser.add_argument('-u', '--username', dest='username', default='gis', help='postgreSQL username (default "gis")')
+    parser.add_argument('-U', '--unprocessed', dest='unproc', action='store_true', help='Don''t use processed files (default will use processed datafiles if available)')
     parser.add_argument('-I', '--datalist', dest='datalist', default='datalist.mb-1', help='MB datalist file (default "datalist.mb-1")')
     args = parser.parse_args()
     main(args)

@@ -4,13 +4,15 @@ mb.py: module for interacting with MB-System objects,
        including in a PostGIS database.
 
 Requirements: working PostgreSQL installation with PostGIS enabled
+              python2.7 (may work on previous 2.x versions, but untested)
               psycopg2 for calling postgreSQL from within Python
+              MB-System <http://www.ldeo.columbia.edu/res/pi/MB-System>
 
 Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Thu Nov 18 22:27:30 EST 2010>
+Time-stamp: <Fri Nov 19 09:42:05 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -49,6 +51,7 @@ class Datafile(object):
 
         self.filename = filename
         self.procfile = None
+        self.pars = None
         self.cruiseid = None
         if os.path.exists(self.filename + '.par'):
             self.parfile = self.filename + '.par'
@@ -71,10 +74,6 @@ class Datafile(object):
         else:
             self.fnvfile = None
             
-
-    # need methods for getting & setting attributes
-    # methods for reading from .fnv and saving nav points as LINESTRING in database
-
     @property
     def records(self):
         """Return number of records in datafile"""
@@ -129,6 +128,44 @@ class Datafile(object):
     def showbadnav(self):
         return Datafile.badnav
 
+    def useproc(self):
+        """Use processed datafiles for future operations if available.
+        Similar to $PROCESSED directive in an MB datalist
+        """
+        # this could be in __init__, but would be slower if not used
+        if self.parfile:
+            self.procfile = self.parameter('OUTFILE')
+            if self.procfile:
+                # set ancillary files to processed versions
+                if os.path.exists(self.procfile + '.inf'):
+                    self.inffile = self.procfile + '.inf'
+                    f = open(self.inffile,'r')
+                    self.info = f.read()
+                    f.close()
+                if os.path.exists(self.procfile + '.fbt'):
+                    self.fbtfile = self.procfile + '.fbt'
+                if os.path.exists(self.procfile + '.fnv'):
+                    self.fnvfile = self.procfile + '.fnv'
+
+    def parameter(self,param):
+        """Read an arbitrary parameter from the processing parameters
+        file if it exists, None otherwise.  Will always return value
+        as a string, there is no testing for numerical values.  User
+        will need to cast as a float or int as appropriate.
+        """
+        if self.parfile:
+            if not self.pars:
+                f = open(self.parfile,'r')
+                self.pars = f.read()
+                f.close()
+            param = param + '\s+(.+)'
+            match = re.search(param,self.pars)
+            if match:
+                 return match.group(1)
+            else: return None
+        else:
+            return None
+        
     def sql(self,table):
         """return an SQL string containing navigation for a cruise
 
