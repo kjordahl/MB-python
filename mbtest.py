@@ -1,12 +1,12 @@
 #!/usr/bin/env python2.7
 """
-load MB .fnv files from datalist and load into PostGIS database
+MBpython testing script
 
 Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Thu Nov 18 22:43:02 EST 2010>
+Time-stamp: <Thu Nov 18 15:06:37 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -27,6 +27,7 @@ import os
 import subprocess                       # could use os.system instead
 import argparse
 import psycopg2
+import re
 from datetime import datetime, date, time
 import mb
 
@@ -47,49 +48,12 @@ def main(args):
         exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
         sys.exit("Datalist open failed!\n ->%s" % (exceptionValue))
         
-    d = mb.Datafile("/Volumes/Data/multibeam/surveys/LDEO/EW9106/hs_ew9106_305.d01.mb24")
-    print d.filename
-    print d.parfile
-    
-    # connect to PostGIS database
-    conn_string = "host='" + args.hostname + "' dbname='" + args.dbname + "' user='" + args.username + "'"
-    print "Connecting to database\n	->%s" % (conn_string)
-    try:
-        conn = psycopg2.connect(conn_string)
-        cursor = conn.cursor()
-        print "Connected!\n"
-    except:
-        exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
-        sys.exit("Database connection failed!\n ->%s" % (exceptionValue)) 
-
-#    print p.stdout.read()
-#    sys.exit("bail for testing")
-    
-    # create the table
-    #CREATE SCHEMA multibeam AUTHORIZATION kels;   # if schema doesn't exist
-    cursor.execute("BEGIN;")
-    sql = "DROP TABLE IF EXISTS " + fulltable + ";"
-    print sql
-    cursor.execute(sql)
-    # for GEOGRAPHY
-    #sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, track GEOGRAPHY);"
-    # for GEOMETRY
-    sql = "CREATE TABLE " + fulltable + " (file_id SERIAL PRIMARY KEY, filename VARCHAR(50), directory VARCHAR(200), mbformat INT, starttime TIMESTAMP, endtime TIMESTAMP, records INT, cruiseid VARCHAR(30));"
-    cursor.execute(sql);
-    print sql
-    sql = "SELECT AddGeometryColumn('" + args.schema + "','" + args.table + "','the_geom','4326','GEOMETRY',2);"
-    print sql
-    cursor.execute(sql);
-
-    id = 1;
     records = 0
     lines = p.stdout.read().split('\n')
-    numfiles = len(lines)
     for line in lines:
         fields = line.split();
         if fields:
             d = mb.Datafile(fields[0]);
-            print "file", id, "of", numfiles, ":", os.path.basename(d.filename)
             if d.inffile:
                 print "Records:", d.records
                 records += d.records
@@ -97,35 +61,13 @@ def main(args):
                 print "endtime:", d.endtime
             else:
                 print "no inffile for", d.filename
+                print "starttime:", d.starttime
             d.setformat(fields[1])
-            print "MB format:", d.format, "\n"
-        sql = d.sql(fulltable)
-
-        # only insert into database if valid string is returned
-        if sql:
-            try:
-                cursor.execute(sql);
-            except:
-                exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
-                sys.exit("SQL command failed!\n ->%s" % (exceptionValue))
-
-            id = id + 1
-
-    try:
-        conn.commit()
-        cursor.close()
-        conn.close()
-        print "%d bad nav points ignored" % d.showbadnav()
-
-    except:
-        #        print datetime.combine(d, t), float(lon), float(lat)
-        exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
-        sys.exit("Barf!\n ->%s" % (exceptionValue)) 
-
-# end main()
+            print "MB format:", d.format
+    print "Total records: ", records
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='add MB data files to PostGIS database')
+    parser = argparse.ArgumentParser(description='MB-System python tools')
 #    parser.add_argument('-o', '--output')
     parser.add_argument('-v', dest='verbose', action='store_true')
     parser.add_argument('-H', '--hostname', dest='hostname', default='localhost', help='postgreSQL server hostname (default "localhost")')
