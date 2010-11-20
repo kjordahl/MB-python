@@ -6,7 +6,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Fri Nov 19 09:42:36 EST 2010>
+Time-stamp: <Sat Nov 20 13:37:20 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -47,10 +47,6 @@ def main(args):
         exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
         sys.exit("Datalist open failed!\n ->%s" % (exceptionValue))
         
-    d = mb.Datafile("/Volumes/Data/multibeam/surveys/LDEO/EW9106/hs_ew9106_305.d01.mb24")
-    print d.filename
-    print d.parfile
-    
     # connect to PostGIS database
     conn_string = "host='" + args.hostname + "' dbname='" + args.dbname + "' user='" + args.username + "'"
     print "Connecting to database\n	->%s" % (conn_string)
@@ -68,18 +64,22 @@ def main(args):
     # create the table
     #CREATE SCHEMA multibeam AUTHORIZATION kels;   # if schema doesn't exist
     cursor.execute("BEGIN;")
-    sql = "DROP TABLE IF EXISTS " + fulltable + ";"
-    print sql
-    cursor.execute(sql)
-    # for GEOGRAPHY
-    #sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, track GEOGRAPHY);"
-    # for GEOMETRY
-    sql = "CREATE TABLE " + fulltable + " (file_id SERIAL PRIMARY KEY, filename VARCHAR(50), directory VARCHAR(200), mbformat INT, starttime TIMESTAMP, endtime TIMESTAMP, records INT, cruiseid VARCHAR(30));"
-    cursor.execute(sql);
-    print sql
-    sql = "SELECT AddGeometryColumn('" + args.schema + "','" + args.table + "','the_geom','4326','GEOMETRY',2);"
-    print sql
-    cursor.execute(sql);
+    if args.drop:
+        sql = "DROP TABLE IF EXISTS " + fulltable + ";"
+        print sql
+        cursor.execute(sql)
+        # for GEOGRAPHY
+        # sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, track GEOGRAPHY);"
+        # for GEOMETRY
+        try:
+            sql = "CREATE TABLE " + fulltable + " (file_id SERIAL PRIMARY KEY, filename VARCHAR(100), directory VARCHAR(200), mbformat INT, starttime TIMESTAMP, endtime TIMESTAMP, records INT, cruiseid VARCHAR(30));"
+            cursor.execute(sql);
+            print sql
+        except:
+            sys.exit('Create table failed!')
+        sql = "SELECT AddGeometryColumn('" + args.schema + "','" + args.table + "','the_geom','4326','GEOMETRY',2);"
+        print sql
+        cursor.execute(sql);
 
     id = 1;
     records = 0
@@ -103,6 +103,14 @@ def main(args):
             d.setformat(fields[1])
             if args.verbose:
                 print "MB format:", d.format, "\n"
+            if args.cruiseid.lower() == 'none':
+                d.cruiseid = None
+            else:
+                if args.cruiseid.lower() == 'auto':
+                    d.cruiseid = os.path.basename(os.path.dirname(d.filename))
+                else:
+                    d.cruiseid = args.cruiseid
+            print "Cruise ID:", d.cruiseid
         sql = d.sql(fulltable)
 
         # only insert into database if valid string is returned
@@ -134,12 +142,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='add MB data files to PostGIS database')
 #    parser.add_argument('-o', '--output')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='verbose output')
+    parser.add_argument('-D', '--drop-table', dest='drop', action='store_true', help='drop table before inserting new data WARNING: This will delete all existing data in table!')
     parser.add_argument('-H', '--hostname', dest='hostname', default='localhost', help='postgreSQL server hostname (default "localhost")')
     parser.add_argument('-s', '--schema', dest='schema', default='multibeam', help='postgreSQL schema (default "multibeam")')
     parser.add_argument('-d', '--dbname', dest='dbname', default='gis_test', help='postgreSQL database name (default "gis_test")')
     parser.add_argument('-t', '--table', dest='table', default='datafiles', help='postgreSQL table name (default "datafiles")')
     parser.add_argument('-u', '--username', dest='username', default='gis', help='postgreSQL username (default "gis")')
     parser.add_argument('-U', '--unprocessed', dest='unproc', action='store_true', help='Don''t use processed files (default will use processed datafiles if available)')
+    parser.add_argument('-c', '--cruiseid', dest='cruiseid', default='auto', help='Manually set cruiseid string for all files.  Default "auto" will use the lowest level subdirectory containing each datafile as the cruise id.  Setting to "none" will leave the cruise id empty.')
     parser.add_argument('-I', '--datalist', dest='datalist', default='datalist.mb-1', help='MB datalist file (default "datalist.mb-1")')
     args = parser.parse_args()
     main(args)

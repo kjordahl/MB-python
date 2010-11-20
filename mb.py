@@ -12,7 +12,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Fri Nov 19 09:42:05 EST 2010>
+Time-stamp: <Sat Nov 20 13:41:07 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -49,6 +49,7 @@ class Datafile(object):
         associated with it.  In particular, it will check for a .inf
         file and read it entirely into self.info"""
 
+        # TODO: add self.dir and remove path from filenames
         self.filename = filename
         self.procfile = None
         self.pars = None
@@ -188,9 +189,9 @@ class Datafile(object):
             f = []                          # make empty list to iterate over
             #         sys.exit("File open failed!\n ->%s" % (exceptionValue))
 
-        sql = "INSERT INTO " + table + " (filename, directory, mbformat, the_geom)"
-        # TODO fix ugly formatting string
-        sql = sql + " VALUES ('" + os.path.basename(datafile) + "','" + os.path.dirname(datafile) + "'," + str(self.format) + ",ST_GeomFromText('LINESTRING("
+        sql = "INSERT INTO " + table + " (filename, directory, mbformat, cruiseid, the_geom)"
+        # TODO fix security issues with preformatting string
+        sql = sql + " VALUES ('" + os.path.basename(datafile) + "','" + os.path.dirname(datafile) + "'," + str(self.format) + ",'" + self.cruiseid + "',ST_GeomFromText('LINESTRING("
         linecount = 0;
         point = ""
 
@@ -199,6 +200,7 @@ class Datafile(object):
             for line in f:
                 # TODO: this is slow: get rid of t if not used
                 (lat, lon, t) = get_navpoint(line);
+                # TODO: what if data actually approach lat=lon=0?
                 if lon < 1 and (abs(lat) < 1 or lat < -89):
                     self.badnavpoint()
                 else:
@@ -242,6 +244,8 @@ def get_navpoint(line):
             t = time(hour, minute, second, microsecond)
             t = datetime.combine(d, t)
 
+        # TODO: could switch to just sending string lat/lon for efficiency,
+        #       but would lose ability to filter valid nav points
         lon=float(fields[7])
         if lon < 0:                   # wrap western hemisphere
             lon = lon + 360
