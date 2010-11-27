@@ -6,7 +6,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Sat Nov 20 13:37:20 EST 2010>
+Time-stamp: <Mon Nov 22 09:01:33 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -86,6 +86,7 @@ def main(args):
     lines = p.stdout.read().split('\n')
     numfiles = len(lines)
     for line in lines:
+        sql = ""
         fields = line.split();
         if fields:
             d = mb.Datafile(fields[0]);
@@ -101,8 +102,6 @@ def main(args):
             else:
                 print "no inffile for", d.filename
             d.setformat(fields[1])
-            if args.verbose:
-                print "MB format:", d.format, "\n"
             if args.cruiseid.lower() == 'none':
                 d.cruiseid = None
             else:
@@ -110,8 +109,10 @@ def main(args):
                     d.cruiseid = os.path.basename(os.path.dirname(d.filename))
                 else:
                     d.cruiseid = args.cruiseid
-            print "Cruise ID:", d.cruiseid
-        sql = d.sql(fulltable)
+            if args.verbose:
+                print "Cruise ID:", d.cruiseid
+                print "MB format:", d.format, "\n"
+            sql = d.sql(fulltable)
 
         # only insert into database if valid string is returned
         if sql:
