@@ -1,0 +1,86 @@
+MB utilities in python
+Author: Kelsey Jordahl <kjordahl@alum.mit.edu>
+Time-stamp: <Sat Nov 27 12:41:41 EST 2010>
+
+This is an ALPHA version of MB utilities in python.  These utilities
+are written in Python to interact with multibeam bathymetry data and
+metadata used with 
+MB-System <http://www.ldeo.columbia.edu/res/pi/MB-System> by David
+W. Caress and Dale N. Chayes.  Use of this program is only recommended
+at the present time for those very familiar with both MB-System
+and PostGIS.  Please see security WARNING below!
+
+Currently, only the program mbnav2sql.py is in a functional state.
+This program is intended to add files from an MB datalist (which may
+be recursive, containing other datalists) to a PostGIS database in
+order to complement the capabilities of MB-System programs such as
+mbdatalist.  This allows the powerful spatial queries in PostGIS to
+apply to multibeam navigation.  For example, one might query to get a
+list of files within 50 km of the coast of the island of Oahu.  It
+also allows browsing of navigation files with a GIS program that can
+interact with a PostGIS database.  I have tested with Qgis, which
+works well (but can be slow for many large navigation files).
+
+There is currently limited functionality, but testing has included
+added over 26,000 files to a PostGIS database.  Please let me know if
+you find this program useful, if you find bugs or have suggestions.
+
+Use "mbnav2sql.py -h" for help and command line options.
+
+EXAMPLES:
+
+Add files to an existing database (see
+<http://blog.quaternio.net/2009/03/10/postgis-beginner-notes> or the
+PostGIS documentation for how to set up a new database named "gis_test"):
+
+% mbnav2sql.py -I datalist.mb-1 -v
+% psql -d gis_test
+gis_test=# SELECT COUNT (*) FROM multibeam.datafiles
+ count 
+-------
+    40
+(1 row)
+
+To show the number of files with more than 10,000 navigation points:
+gis_test=# SELECT COUNT (*) FROM multibeam.datafiles WHERE ST_NPoints(the_geom) > 10000;
+
+And to simplify those navigation points for faster computation and display
+(CAUTION: replaces full resolution navigation!):
+gis_test=# UPDATE multibeam.datafiles SET the_geom = ST_SimplifyPreserveTopology(the_geom,0.0001) WHERE ST_NPoints(the_geom) > 1000;
+
+
+WARNING:
+
+PostgreSQL communication is currently done in an insecure
+manner.  DO NOT USE with a production database or with any important
+data unless you are SURE exactly what you are doing.  For more
+information on the potential dangers of SQL injection attacks, please
+see <http://xkcd.com/327>.
+
+TODO: 
+
+- fix security of SQL cursor commands (IMPORTANT)
+- Use PostGIS GEOGRAPHY datatype which recognizes spherical geometry
+  instead of flat GEOMETRY datatype (essentially a plate carrée
+  projection).
+- Add timestamps for start and end times of each file to database
+- Link cruiseid to metadata for each cruise
+- and plenty more....
+
+These programs are released under the Gnu Public License (version 3).
+They are free to use, imply no warantee whatsoever, and may be
+redistributed under the terms of the GPLv3.  Please see the file
+COPYING or <http://www.gnu.org/licenses> for details.
+
+REQUIREMENTS:
+
+python2.7 (may work on previous 2.x versions, but untested)
+psycopg2 <http://initd.org/psycopg> for calling postgreSQL from within Python
+MB-System (probably version 5.1 or greater)
+PostgreSQL installed and running <http://www.postgresql.org>
+PostGIS enabled <http://postgis.refractions.net>
+(optional) PostGIS-enabled GIS program such as Qgis <http://www.qgis.org>
+
+Files:
+mb.py	Python module containing objects representing MB data structures
+mbnav2sql.py   load MB .fnv files from datalist and load into PostGIS database
