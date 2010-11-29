@@ -6,7 +6,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Mon Nov 22 09:01:33 EST 2010>
+Time-stamp: <Mon Nov 29 15:30:47 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -31,6 +31,8 @@ from datetime import datetime, date, time
 import mb
 
 def main(args):
+    if args.verbose:
+        print args
     print "hostname:", args.hostname
     print "schema:", args.schema
     print "table:", args.table
@@ -38,7 +40,10 @@ def main(args):
     print "dbname:", args.dbname
     print "username:", args.username
     fulltable = args.schema + "." + args.table
-
+    print "fulltable:", fulltable
+    # check to see that names are reasonable (alphanumeric)
+    if not args.hostname.isalnum() or not args.schema.isalnum() or not args.table.isalnum() or not args.username.isalnum():
+        sys.exit("Bad input!")          # TODO: improve this error message
     try:
         # get list of unprocessed datafiles
         p = subprocess.Popen(['mbdatalist','-U','-I',args.datalist],stdout=subprocess.PIPE)
@@ -67,7 +72,9 @@ def main(args):
     if args.drop:
         sql = "DROP TABLE IF EXISTS " + fulltable + ";"
         print sql
-        cursor.execute(sql)
+        # this would seem better, but can't substitute table name:
+        #        cursor.execute("DROP TABLE IF EXISTS (%s);",(fulltable,))
+        cursor.execute(sql);
         # for GEOGRAPHY
         # sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, track GEOGRAPHY);"
         # for GEOMETRY
@@ -77,9 +84,9 @@ def main(args):
             print sql
         except:
             sys.exit('Create table failed!')
-        sql = "SELECT AddGeometryColumn('" + args.schema + "','" + args.table + "','the_geom','4326','GEOMETRY',2);"
+        sql = "SELECT AddGeometryColumn(%s,%s,'the_geom','4326','GEOMETRY',2);"
         print sql
-        cursor.execute(sql);
+        cursor.execute(sql,(args.schema,args.table));
 
     id = 1;
     records = 0
@@ -92,7 +99,7 @@ def main(args):
             d = mb.Datafile(fields[0]);
             if not args.unproc:
                 d.useproc()  # use processed files unless specified otherwise
-            print "file", id, "of", numfiles, ":", os.path.basename(d.filename)
+            print "file", id, "of", numfiles, ":", d.filename
             if d.inffile:
                 records += d.records
                 if args.verbose:
@@ -106,7 +113,7 @@ def main(args):
                 d.cruiseid = None
             else:
                 if args.cruiseid.lower() == 'auto':
-                    d.cruiseid = os.path.basename(os.path.dirname(d.filename))
+                    d.cruiseid = os.path.basename(d.dirname)
                 else:
                     d.cruiseid = args.cruiseid
             if args.verbose:
@@ -117,7 +124,7 @@ def main(args):
         # only insert into database if valid string is returned
         if sql:
             try:
-                cursor.execute(sql);
+                cursor.execute(sql,(d.filename,d.dirname,d.format,d.cruiseid));
             except:
                 exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
                 sys.exit("SQL command failed!\n ->%s" % (exceptionValue))

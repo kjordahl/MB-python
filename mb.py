@@ -12,7 +12,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Sat Nov 20 13:41:07 EST 2010>
+Time-stamp: <Mon Nov 29 14:49:39 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -49,28 +49,28 @@ class Datafile(object):
         associated with it.  In particular, it will check for a .inf
         file and read it entirely into self.info"""
 
-        # TODO: add self.dir and remove path from filenames
-        self.filename = filename
+        self.filename = os.path.basename(filename)
+        self.dirname = os.path.dirname(filename)
         self.procfile = None
         self.pars = None
         self.cruiseid = None
-        if os.path.exists(self.filename + '.par'):
+        if os.path.exists(os.path.join(self.dirname,self.filename) + '.par'):
             self.parfile = self.filename + '.par'
         else:
             self.parfile = None
-        if os.path.exists(self.filename + '.inf'):
+        if os.path.exists(os.path.join(self.dirname,self.filename) + '.inf'):
             self.inffile = self.filename + '.inf'
-            f = open(self.inffile,'r')
+            f = open(os.path.join(self.dirname,self.inffile),'r')
             self.info = f.read()
             f.close()
         else:
             self.inffile = None
             self.info = None
-        if os.path.exists(self.filename + '.fbt'):
+        if os.path.exists(os.path.join(self.dirname,self.filename) + '.fbt'):
             self.fbtfile = self.filename + '.fbt'
         else:
             self.fbtfile = None
-        if os.path.exists(self.filename + '.fnv'):
+        if os.path.exists(os.path.join(self.dirname,self.filename) + '.fnv'):
             self.fnvfile = self.filename + '.fnv'
         else:
             self.fnvfile = None
@@ -156,7 +156,7 @@ class Datafile(object):
         """
         if self.parfile:
             if not self.pars:
-                f = open(self.parfile,'r')
+                f = open(os.path.join(self.dirname,self.parfile),'r')
                 self.pars = f.read()
                 f.close()
             param = param + '\s+(.+)'
@@ -181,7 +181,7 @@ class Datafile(object):
             datafile = self.filename
 
         try:
-            f = open(self.fnvfile,'r')
+            f = open(os.path.join(self.dirname,self.fnvfile),'r')
         except:
             # no need to crash - just warn
             exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
@@ -191,7 +191,8 @@ class Datafile(object):
 
         sql = "INSERT INTO " + table + " (filename, directory, mbformat, cruiseid, the_geom)"
         # TODO fix security issues with preformatting string
-        sql = sql + " VALUES ('" + os.path.basename(datafile) + "','" + os.path.dirname(datafile) + "'," + str(self.format) + ",'" + self.cruiseid + "',ST_GeomFromText('LINESTRING("
+        # cursor.copy_from() would probably be better
+        sql = sql + " VALUES (%s,%s,%s,%s,ST_GeomFromText('LINESTRING("
         linecount = 0;
         point = ""
 
@@ -200,6 +201,7 @@ class Datafile(object):
             for line in f:
                 # TODO: this is slow: get rid of t if not used
                 (lat, lon, t) = get_navpoint(line);
+                # simple filtering
                 # TODO: what if data actually approach lat=lon=0?
                 if lon < 1 and (abs(lat) < 1 or lat < -89):
                     self.badnavpoint()
