@@ -12,7 +12,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Mon Nov 29 14:49:39 EST 2010>
+Time-stamp: <Thu Dec  2 17:38:16 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -37,8 +37,9 @@ from datetime import datetime, date, time
 
 class Datafile(object):
     """Class for MB-System datafile.
-    May include metdata, processed and unprocessed datafiles, and ancillary files
-    such as .fnv, .fbt and .inf files.
+
+    May include metadata, processed and unprocessed datafile names,
+    and ancillary files such as .fnv, .fbt and .inf files.
     """
 
     badnav = 0
@@ -189,7 +190,7 @@ class Datafile(object):
             f = []                          # make empty list to iterate over
             #         sys.exit("File open failed!\n ->%s" % (exceptionValue))
 
-        sql = "INSERT INTO " + table + " (filename, directory, mbformat, cruiseid, the_geom)"
+        sql = "INSERT INTO " + table + " (filename, directory, mbformat, cruiseid, track)"
         # TODO fix security issues with preformatting string
         # cursor.copy_from() would probably be better
         sql = sql + " VALUES (%s,%s,%s,%s,ST_GeomFromText('LINESTRING("
@@ -199,11 +200,10 @@ class Datafile(object):
         # parse the .fnv file
         try:
             for line in f:
-                # TODO: this is slow: get rid of t if not used
                 (lat, lon, t) = get_navpoint(line);
                 # simple filtering
                 # TODO: what if data actually approach lat=lon=0?
-                if lon < 1 and (abs(lat) < 1 or lat < -89):
+                if (abs(lon) < 1 and abs(lat) < 1) or lat < -89:
                     self.badnavpoint()
                 else:
                     point = "%s %s" % (lon, lat)
@@ -227,7 +227,9 @@ class Datafile(object):
 
 # point parsing as a function, not a method.  Should there be a point class?
 def get_navpoint(line):
-    """ Parse a line of .fnv file to return longitude, latitude, Python time
+    """ Parse a line of .fnv file to return longitude, latitude
+
+    (currently does not return timestamp for each point, but it could)
 
     """
     
@@ -246,11 +248,12 @@ def get_navpoint(line):
             t = time(hour, minute, second, microsecond)
             t = datetime.combine(d, t)
 
-        # TODO: could switch to just sending string lat/lon for efficiency,
-        #       but would lose ability to filter valid nav points
+        # TODO?: could switch to just sending string lat/lon for efficiency,
+        #        but would lose ability to filter valid nav points
+        #        and would be a potential security issue in SQL query
         lon=float(fields[7])
-        if lon < 0:                   # wrap western hemisphere
-            lon = lon + 360
+        if lon > 180:                   # wrap hemisphere
+            lon = lon - 360
         lat=float(fields[8])
         return (lat, lon, t)
     else:

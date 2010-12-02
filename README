@@ -1,6 +1,6 @@
 MB utilities in python
 Author: Kelsey Jordahl <kjordahl@alum.mit.edu>
-Time-stamp: <Sat Nov 27 12:41:41 EST 2010>
+Time-stamp: <Thu Dec  2 17:40:03 EST 2010>
 
 This is an ALPHA version of MB utilities in python.  These utilities
 are written in Python to interact with multibeam bathymetry data and
@@ -51,20 +51,24 @@ gis_test=# UPDATE multibeam.datafiles SET the_geom = ST_SimplifyPreserveTopology
 
 WARNING:
 
-PostgreSQL communication is currently done in an insecure
-manner.  DO NOT USE with a production database or with any important
-data unless you are SURE exactly what you are doing.  For more
-information on the potential dangers of SQL injection attacks, please
-see <http://xkcd.com/327>.
+Although some checking is done on input, PostgreSQL communication is
+currently not done in an entirely secure manner.  DO NOT USE with a
+production database or with any important data unless you are SURE
+exactly what you are doing.  For more information on the potential
+dangers of SQL injection attacks, please see <http://xkcd.com/327>.
 
 TODO: 
 
-- fix security of SQL cursor commands (IMPORTANT)
+- improve security of SQL cursor commands
 - Use PostGIS GEOGRAPHY datatype which recognizes spherical geometry
   instead of flat GEOMETRY datatype (essentially a plate carrée
   projection).
 - Add timestamps for start and end times of each file to database
-- Link cruiseid to metadata for each cruise
+- Link cruiseid to metadata for each cruise, ideally with automatic retrieval of
+  metadata from archives such as
+  http://www.marine-geo.org/tools/web_services.php
+  or
+  http://www.ngdc.noaa.gov/metadata/published/NGDC_-_MGG_-_Multibeam_Survey/list
 - and plenty more....
 
 These programs are released under the Gnu Public License (version 3).
@@ -82,5 +86,5 @@ PostGIS enabled <http://postgis.refractions.net>
 (optional) PostGIS-enabled GIS program such as Qgis <http://www.qgis.org>
 
 Files:
-mb.py	Python module containing objects representing MB data structures
+mb.py	       Python module containing objects representing MB data structures
 mbnav2sql.py   load MB .fnv files from datalist and load into PostGIS database

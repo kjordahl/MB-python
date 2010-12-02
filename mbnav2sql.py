@@ -6,7 +6,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Mon Nov 29 15:30:47 EST 2010>
+Time-stamp: <Thu Dec  2 18:47:23 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -31,6 +31,8 @@ from datetime import datetime, date, time
 import mb
 
 def main(args):
+    # precision for track simplification (~10 meters depending on latitude)
+    dx = 0.0001  # degrees
     if args.verbose:
         print args
     print "hostname:", args.hostname
@@ -63,11 +65,7 @@ def main(args):
         exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
         sys.exit("Database connection failed!\n ->%s" % (exceptionValue)) 
 
-#    print p.stdout.read()
-#    sys.exit("bail for testing")
-    
     # create the table
-    #CREATE SCHEMA multibeam AUTHORIZATION kels;   # if schema doesn't exist
     cursor.execute("BEGIN;")
     if args.drop:
         sql = "DROP TABLE IF EXISTS " + fulltable + ";"
@@ -75,11 +73,8 @@ def main(args):
         # this would seem better, but can't substitute table name:
         #        cursor.execute("DROP TABLE IF EXISTS (%s);",(fulltable,))
         cursor.execute(sql);
-        # for GEOGRAPHY
-        # sql = "CREATE TABLE " + table + " (file_id SERIAL PRIMARY KEY, track GEOGRAPHY);"
-        # for GEOMETRY
         try:
-            sql = "CREATE TABLE " + fulltable + " (file_id SERIAL PRIMARY KEY, filename VARCHAR(100), directory VARCHAR(200), mbformat INT, starttime TIMESTAMP, endtime TIMESTAMP, records INT, cruiseid VARCHAR(30));"
+            sql = "CREATE TABLE " + fulltable + " (file_id SERIAL PRIMARY KEY, filename VARCHAR(100), directory VARCHAR(200), mbformat INT, starttime TIMESTAMP, endtime TIMESTAMP, records INT, cruiseid VARCHAR(30), track GEOGRAPHY);"
             cursor.execute(sql);
             print sql
         except:
@@ -118,13 +113,30 @@ def main(args):
                     d.cruiseid = args.cruiseid
             if args.verbose:
                 print "Cruise ID:", d.cruiseid
-                print "MB format:", d.format, "\n"
+                print "MB format:", d.format
             sql = d.sql(fulltable)
 
         # only insert into database if valid string is returned
         if sql:
             try:
                 cursor.execute(sql,(d.filename,d.dirname,d.format,d.cruiseid));
+                if args.geom:
+                    if args.verbose:
+                        print "Updating geometry field..."
+                    sql = 'UPDATE ' + fulltable + ' SET the_geom = ST_SimplifyPreserveTopology(track::geometry,' + str(dx) + ');'
+                    cursor.execute(sql);
+                if args.simplify:
+                    if args.verbose:
+                        print "Simplifying geography field...", "\n"
+                    if args.geom:
+                        # use GEOMETRY column recast back into GEOGRAPHY,
+                        # since ST_Simplify does not work on GEOGRAPHY type anyway
+                        sql = 'UPDATE ' + fulltable + ' SET track = the_geom::geography;'
+                    else:
+                        # have to call ST_Simplify for GEOGRAPHY column
+                        sql = 'UPDATE ' + fulltable + ' SET track = ST_SimplifyPreserveTopology(track::geometry,' + str(dx) + ')::geography;'
+                                                
+                    cursor.execute(sql);
             except:
                 exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
                 sys.exit("SQL command failed!\n ->%s" % (exceptionValue))
@@ -148,8 +160,11 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='add MB data files to PostGIS database')
-#    parser.add_argument('-o', '--output')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='verbose output')
+    # always populate the GEOGRAPHY column, no need for this
+    # parser.add_argument('-G', '--geography', dest='geog', action='store_true', help='store trackline as GEOGRAPHY type')
+    parser.add_argument('-M', '--geometry', dest='geom', action='store_true', help='Store simplified trackline as GEOMETRY type in addition to the default GEOGRAPHY column.  This may be helpful in order to be recognized by some GIS software, including Qgis before version 1.6.  Note that data are in flat x, y fields that have no notion of a spherical (not to mention ellipsoidal) Earth.')
+    parser.add_argument('-S', '--simplify', dest='simplify', action='store_true', help='simplify trackline (default will store full resolution trackline; simplification will use less storage and plot faster in GIS tools).  This applies only to the main GEOGRAPHY column; the GEOMETRY column will always be simplified (if populated by the -M argument).')
     parser.add_argument('-D', '--drop-table', dest='drop', action='store_true', help='drop table before inserting new data WARNING: This will delete all existing data in table!')
     parser.add_argument('-H', '--hostname', dest='hostname', default='localhost', help='postgreSQL server hostname (default "localhost")')
     parser.add_argument('-s', '--schema', dest='schema', default='multibeam', help='postgreSQL schema (default "multibeam")')
