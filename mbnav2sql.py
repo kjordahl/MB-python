@@ -1,12 +1,14 @@
 #!/usr/bin/env python2.7
 """
-load MB .fnv files from datalist and load into PostGIS database
+Read multibeam sonar metadata and navigation files from a datalist and
+load into a PostGIS database.  Uses tools and ancillary files of
+MB-System <http://www.ldeo.columbia.edu/res/pi/MB-System>
 
 Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Thu Dec  2 18:47:23 EST 2010>
+Time-stamp: <Thu Dec  2 22:38:50 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -28,7 +30,7 @@ import subprocess                       # could use os.system instead
 import argparse
 import psycopg2
 from datetime import datetime, date, time
-import mb
+import mb                               # MB tools for python
 
 def main(args):
     # precision for track simplification (~10 meters depending on latitude)
@@ -55,7 +57,7 @@ def main(args):
         sys.exit("Datalist open failed!\n ->%s" % (exceptionValue))
         
     # connect to PostGIS database
-    conn_string = "host='" + args.hostname + "' dbname='" + args.dbname + "' user='" + args.username + "'"
+    conn_string = "host=%s dbname=%s user=%s" % ( args.hostname, args.dbname, args.username )
     print "Connecting to database\n	->%s" % (conn_string)
     try:
         conn = psycopg2.connect(conn_string)
@@ -68,17 +70,26 @@ def main(args):
     # create the table
     cursor.execute("BEGIN;")
     if args.drop:
-        sql = "DROP TABLE IF EXISTS " + fulltable + ";"
+        sql = "DROP TABLE IF EXISTS %s;" % (fulltable)
         print sql
         # this would seem better, but can't substitute table name:
         #        cursor.execute("DROP TABLE IF EXISTS (%s);",(fulltable,))
         cursor.execute(sql);
         try:
-            sql = "CREATE TABLE " + fulltable + " (file_id SERIAL PRIMARY KEY, filename VARCHAR(100), directory VARCHAR(200), mbformat INT, starttime TIMESTAMP, endtime TIMESTAMP, records INT, cruiseid VARCHAR(30), track GEOGRAPHY);"
+            sql = """CREATE TABLE %s (file_id SERIAL PRIMARY KEY,
+                filename VARCHAR(100),
+                directory VARCHAR(200),
+                mbformat INT,
+                start_time TIMESTAMP,
+                end_time TIMESTAMP,
+                records INT,
+                cruise_id VARCHAR(30),
+                track GEOGRAPHY);""" % (fulltable)
             cursor.execute(sql);
             print sql
         except:
             sys.exit('Create table failed!')
+        # create a geometry column, even if it will not be populated
         sql = "SELECT AddGeometryColumn(%s,%s,'the_geom','4326','GEOMETRY',2);"
         print sql
         cursor.execute(sql,(args.schema,args.table));
@@ -86,6 +97,8 @@ def main(args):
     id = 1;
     records = 0
     lines = p.stdout.read().split('\n')
+    # remove empty lines (found at end)
+    lines = filter(None,lines)
     numfiles = len(lines)
     for line in lines:
         sql = ""
@@ -116,14 +129,14 @@ def main(args):
                 print "MB format:", d.format
             sql = d.sql(fulltable)
 
-        # only insert into database if valid string is returned
+        # only insert into database if valid string was returned
         if sql:
             try:
-                cursor.execute(sql,(d.filename,d.dirname,d.format,d.cruiseid));
+                cursor.execute(sql,(d.filename,d.dirname,d.format,d.cruiseid,d.records,d.starttime,d.endtime));
                 if args.geom:
                     if args.verbose:
                         print "Updating geometry field..."
-                    sql = 'UPDATE ' + fulltable + ' SET the_geom = ST_SimplifyPreserveTopology(track::geometry,' + str(dx) + ');'
+                    sql = 'UPDATE %s SET the_geom = ST_SimplifyPreserveTopology(track::geometry,%s);' % (fulltable, str(dx))
                     cursor.execute(sql);
                 if args.simplify:
                     if args.verbose:
@@ -131,10 +144,10 @@ def main(args):
                     if args.geom:
                         # use GEOMETRY column recast back into GEOGRAPHY,
                         # since ST_Simplify does not work on GEOGRAPHY type anyway
-                        sql = 'UPDATE ' + fulltable + ' SET track = the_geom::geography;'
+                        sql = 'UPDATE %s SET track = the_geom::geography;' % (fulltable)
                     else:
                         # have to call ST_Simplify for GEOGRAPHY column
-                        sql = 'UPDATE ' + fulltable + ' SET track = ST_SimplifyPreserveTopology(track::geometry,' + str(dx) + ')::geography;'
+                        sql = 'UPDATE %s SET track = ST_SimplifyPreserveTopology(track::geometry,%s)::geography;' % (fulltable, str(dx))
                                                 
                     cursor.execute(sql);
             except:
@@ -159,7 +172,7 @@ def main(args):
 # end main()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='add MB data files to PostGIS database')
+    parser = argparse.ArgumentParser(description='add multibeam sonar metadata and navigation to a PostGIS database')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='verbose output')
     # always populate the GEOGRAPHY column, no need for this
     # parser.add_argument('-G', '--geography', dest='geog', action='store_true', help='store trackline as GEOGRAPHY type')

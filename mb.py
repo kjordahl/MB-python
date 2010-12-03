@@ -12,7 +12,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Thu Dec  2 17:38:16 EST 2010>
+Time-stamp: <Thu Dec  2 21:10:17 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -190,10 +190,10 @@ class Datafile(object):
             f = []                          # make empty list to iterate over
             #         sys.exit("File open failed!\n ->%s" % (exceptionValue))
 
-        sql = "INSERT INTO " + table + " (filename, directory, mbformat, cruiseid, track)"
+        sql = "INSERT INTO %s (filename, directory, mbformat, cruise_id, records, start_time, end_time, track)" % (table)
         # TODO fix security issues with preformatting string
         # cursor.copy_from() would probably be better
-        sql = sql + " VALUES (%s,%s,%s,%s,ST_GeomFromText('LINESTRING("
+        sql = sql + " VALUES (%s, %s,%s,%s,%s,%s,%s,ST_GeomFromText('LINESTRING("
         linecount = 0;
         point = ""
 
@@ -217,7 +217,7 @@ class Datafile(object):
         finally:
             if isinstance(f,file):
                 f.close()
-        sql = sql + ")',4326));"
+        sql = sql + ")'));"
         if linecount > 1:
             return sql
             id = id + 1
