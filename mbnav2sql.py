@@ -8,7 +8,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Thu Dec  2 22:38:50 EST 2010>
+Time-stamp: <Sat Dec  4 10:21:36 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -43,7 +43,7 @@ def main(args):
     print "datalist:", args.datalist
     print "dbname:", args.dbname
     print "username:", args.username
-    fulltable = args.schema + "." + args.table
+    fulltable = args.schema + "." + args.table # not a great variable name
     print "fulltable:", fulltable
     # check to see that names are reasonable (alphanumeric)
     if not args.hostname.isalnum() or not args.schema.isalnum() or not args.table.isalnum() or not args.username.isalnum():
@@ -90,7 +90,7 @@ def main(args):
         except:
             sys.exit('Create table failed!')
         # create a geometry column, even if it will not be populated
-        sql = "SELECT AddGeometryColumn(%s,%s,'the_geom','4326','GEOMETRY',2);"
+        sql = "SELECT AddGeometryColumn(%s,%s,'the_geom','4326','LINESTRING',2);"
         print sql
         cursor.execute(sql,(args.schema,args.table));
 
@@ -103,6 +103,8 @@ def main(args):
     for line in lines:
         sql = ""
         fields = line.split();
+        if args.verbose:
+            print "datalistline:", line
         if fields:
             d = mb.Datafile(fields[0]);
             if not args.unproc:
@@ -127,36 +129,31 @@ def main(args):
             if args.verbose:
                 print "Cruise ID:", d.cruiseid
                 print "MB format:", d.format
-            sql = d.sql(fulltable)
+            sql = ""
+            d.sql(args,cursor)
 
         # only insert into database if valid string was returned
-        if sql:
-            try:
-                cursor.execute(sql,(d.filename,d.dirname,d.format,d.cruiseid,d.records,d.starttime,d.endtime));
-                if args.geom:
-                    if args.verbose:
-                        print "Updating geometry field..."
-                    sql = 'UPDATE %s SET the_geom = ST_SimplifyPreserveTopology(track::geometry,%s);' % (fulltable, str(dx))
-                    cursor.execute(sql);
-                if args.simplify:
-                    if args.verbose:
-                        print "Simplifying geography field...", "\n"
-                    if args.geom:
-                        # use GEOMETRY column recast back into GEOGRAPHY,
-                        # since ST_Simplify does not work on GEOGRAPHY type anyway
-                        sql = 'UPDATE %s SET track = the_geom::geography;' % (fulltable)
-                    else:
-                        # have to call ST_Simplify for GEOGRAPHY column
-                        sql = 'UPDATE %s SET track = ST_SimplifyPreserveTopology(track::geometry,%s)::geography;' % (fulltable, str(dx))
+        tic = datetime.now()
+        if args.geom:
+            if args.verbose:
+                print "Updating geometry field..."
+            sql = 'UPDATE %s SET the_geom = ST_SimplifyPreserveTopology(track::geometry,%s);' % (fulltable, str(dx))
+            cursor.execute(sql);
+        if args.simplify:
+            if args.verbose:
+                print "Simplifying geography field...", "\n"
+            if args.geom:
+                # use GEOMETRY column recast back into GEOGRAPHY,
+                # since ST_Simplify does not work on GEOGRAPHY type anyway
+                sql = 'UPDATE %s SET track = the_geom::geography;' % (fulltable)
+            else:
+                # have to call ST_Simplify for GEOGRAPHY column
+                sql = 'UPDATE %s SET track = ST_SimplifyPreserveTopology(track::geometry,%s)::geography;' % (fulltable, str(dx))
                                                 
-                    cursor.execute(sql);
-            except:
-                exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
-                sys.exit("SQL command failed!\n ->%s" % (exceptionValue))
+            cursor.execute(sql);
 
-            id += 1
-        else:
-            numfiles -= 1               # don't count in total
+        conn.commit()
+        id += 1
 
     try:
         conn.commit()

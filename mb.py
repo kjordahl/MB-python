@@ -12,7 +12,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Thu Dec  2 21:10:17 EST 2010>
+Time-stamp: <Sat Dec  4 10:22:43 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -34,6 +34,7 @@ import re
 import argparse
 import psycopg2
 from datetime import datetime, date, time
+import tempfile
 
 class Datafile(object):
     """Class for MB-System datafile.
@@ -168,19 +169,47 @@ class Datafile(object):
         else:
             return None
         
-    def sql(self,table):
-        """return an SQL string containing navigation for a cruise
+    def sql(self,args,cur):
+        """Add navigation and metadata for a multibeam datafile to a
+        PostGIS database.
 
-        Parse a .fnv fast nav file and return a line of SQL code to
-        INSERT into database.  Currently the database name is a global
-        variable, that should change.
+        Cursor cur must already have been opened by psycopg2 calls.
         """
-        
+
+        fulltable = args.schema + "." + args.table # multibeam datalist table
+        temptable = 'tempfnv1234'  # name for temporary table storing nav points
+
         if self.procfile:
             datafile = self.procfile         # use processed file if available
         else:
             datafile = self.filename
 
+        self.copy_nav(args,temptable,cur)
+        # conn.commit()
+        sql = "INSERT INTO %s (filename, directory, mbformat, cruise_id, records, start_time, end_time, track)" % (fulltable)
+        sql = sql + ' VALUES (%s,%s,%s,%s,%s,%s,%s,(SELECT ST_MakeLine(tmp_point)::geography FROM ' + args.schema + '.' + temptable + '));'
+        if args.verbose:
+            print sql
+        cur.execute(sql,(self.filename,self.dirname,self.format,self.cruiseid,self.records,self.starttime,self.endtime))
+        # conn.commit()
+        # print "drop it!"
+        # sql = 'DROP TABLE %s;' % (args.schema + '.' + temptable)
+        # cur.execute(sql)
+#        sql = "UPDATE %s SET track = ST_MakeLine(tmp_point) FROM %s;" % (fulltable, args.schema + '.' + temptable)
+#        c.execute(sql)
+
+    def copy_nav(self,args,temptable,cur):
+        """Copy the contents of the .fnv file associated with a
+        multibeam data file to a temporary PostGIS table for import as
+        a LINESTRING.  Use of the copy_from() function is much faster
+        than reading it into an INSERT statement as text.
+
+        Temporary table will contain the following columns:
+            lon FLOAT,
+            lat FLOAT,
+            tmp_point POINT
+        """
+        fulltable = args.schema + '.' + temptable
         try:
             f = open(os.path.join(self.dirname,self.fnvfile),'r')
         except:
@@ -188,42 +217,43 @@ class Datafile(object):
             exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
             print "WARNING: File open failed!\n ->%s" % (exceptionValue)
             f = []                          # make empty list to iterate over
-            #         sys.exit("File open failed!\n ->%s" % (exceptionValue))
+        t = tempfile.TemporaryFile()
+        for line in f:
+            fields=line.split();
+            t.write('%s %s\n' % (fields[7],fields[8]))
+        t.seek(0)
+        # conn_string = "host=%s dbname=%s user=%s" % ( args.hostname, args.dbname, args.username )
+        # print "Connecting to database\n	->%s" % (conn_string)
+        # try:
+        #     conn = psycopg2.connect(conn_string)
+        #     cursor = conn.cursor()
+        #     print "Connected!\n"
+        # except:
+        #     exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
+        #     sys.exit("Database connection failed!\n ->%s" % (exceptionValue)) 
 
-        sql = "INSERT INTO %s (filename, directory, mbformat, cruise_id, records, start_time, end_time, track)" % (table)
-        # TODO fix security issues with preformatting string
-        # cursor.copy_from() would probably be better
-        sql = sql + " VALUES (%s, %s,%s,%s,%s,%s,%s,ST_GeomFromText('LINESTRING("
-        linecount = 0;
-        point = ""
+        #        sql = "SELECT lon, lat, ST_AsText(tmp_point) FROM multibeam.tempfnv1234;"
+        #        print sql
+        #        cursor.execute(sql);
+        # cursor.execute("BEGIN;")
+        sql = "DROP TABLE IF EXISTS %s;" % (fulltable)
+        if args.verbose:
+            print sql
+        cur.execute(sql);
+        sql = 'CREATE TABLE %s (id SERIAL PRIMARY KEY, lon FLOAT, lat FLOAT);' %  (fulltable)
+        if args.verbose:
+            print sql
+        cur.execute(sql);
+        sql = "SELECT AddGeometryColumn(%s,%s,'tmp_point','4326','GEOMETRY',2);"
+        if args.verbose:
+            print sql
+        cur.execute(sql,(args.schema,temptable));
+        cur.copy_from(t, fulltable, sep= ' ', columns=('lon','lat'))
+        sql = 'UPDATE %s SET tmp_point = ST_SetSRID(ST_MakePoint(lon,lat),4326);' %  (fulltable)
+        if args.verbose:
+            print sql
+        cur.execute(sql);
 
-        # parse the .fnv file
-        try:
-            for line in f:
-                (lat, lon, t) = get_navpoint(line);
-                # simple filtering
-                # TODO: what if data actually approach lat=lon=0?
-                if (abs(lon) < 1 and abs(lat) < 1) or lat < -89:
-                    self.badnavpoint()
-                else:
-                    point = "%s %s" % (lon, lat)
-                    
-                if point:
-                    if linecount == 0:
-                        sql = sql + point
-                    else:
-                        sql = sql + "," + point
-                    linecount = linecount + 1
-        finally:
-            if isinstance(f,file):
-                f.close()
-        sql = sql + ")'));"
-        if linecount > 1:
-            return sql
-            id = id + 1
-        else:
-            print "%d line(s) read - not included in database" % linecount
-            return ""
 
 # point parsing as a function, not a method.  Should there be a point class?
 def get_navpoint(line):

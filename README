@@ -1,6 +1,6 @@
 MB utilities in python
 Author: Kelsey Jordahl <kjordahl@alum.mit.edu>
-Time-stamp: <Thu Dec  2 21:40:40 EST 2010>
+Time-stamp: <Thu Dec  2 22:51:19 EST 2010>
 
 This is an ALPHA version of MB utilities in python.  These utilities
 are written in Python to interact with multibeam bathymetry data and
@@ -25,7 +25,8 @@ There is currently limited functionality, but testing has included
 added over 26,000 files to a PostGIS database.  Please let me know if
 you find this program useful, if you find bugs or have suggestions.
 
-The database structure is as follows (though still subject to change):
+The PostGIS database column structure is as follows (though still
+subject to change):
   file_id SERIAL PRIMARY KEY,
   filename VARCHAR(100),
   directory VARCHAR(200),
