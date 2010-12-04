@@ -5,10 +5,10 @@ load into a PostGIS database.  Uses tools and ancillary files of
 MB-System <http://www.ldeo.columbia.edu/res/pi/MB-System>
 
 Author: Kelsey Jordahl
-Version: pre-alpha
+Version: alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Sat Dec  4 10:21:36 EST 2010>
+Time-stamp: <Sat Dec  4 13:36:52 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -48,13 +48,15 @@ def main(args):
     # check to see that names are reasonable (alphanumeric)
     if not args.hostname.isalnum() or not args.schema.isalnum() or not args.table.isalnum() or not args.username.isalnum():
         sys.exit("Bad input!")          # TODO: improve this error message
+    if not os.path.isfile(args.datalist):
+        sys.exit('Datalist file %s does not exist' % (args.datalist))
     try:
         # get list of unprocessed datafiles
         p = subprocess.Popen(['mbdatalist','-U','-I',args.datalist],stdout=subprocess.PIPE)
 
     except:
         exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
-        sys.exit("Datalist open failed!\n ->%s" % (exceptionValue))
+        sys.exit("Datalist read failed!\n ->%s" % (exceptionValue))
         
     # connect to PostGIS database
     conn_string = "host=%s dbname=%s user=%s" % ( args.hostname, args.dbname, args.username )
@@ -90,7 +92,7 @@ def main(args):
         except:
             sys.exit('Create table failed!')
         # create a geometry column, even if it will not be populated
-        sql = "SELECT AddGeometryColumn(%s,%s,'the_geom','4326','LINESTRING',2);"
+        sql = "SELECT AddGeometryColumn(%s,%s,'the_geom','4326','GEOMETRY',2);"
         print sql
         cursor.execute(sql,(args.schema,args.table));
 

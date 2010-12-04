@@ -12,7 +12,7 @@ Author: Kelsey Jordahl
 Version: pre-alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Sat Dec  4 10:22:43 EST 2010>
+Time-stamp: <Sat Dec  4 12:12:34 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -184,13 +184,23 @@ class Datafile(object):
         else:
             datafile = self.filename
 
-        self.copy_nav(args,temptable,cur)
+        # copy navigation to a temporary table
+        npoints = self.copy_nav(args,temptable,cur)
         # conn.commit()
-        sql = "INSERT INTO %s (filename, directory, mbformat, cruise_id, records, start_time, end_time, track)" % (fulltable)
-        sql = sql + ' VALUES (%s,%s,%s,%s,%s,%s,%s,(SELECT ST_MakeLine(tmp_point)::geography FROM ' + args.schema + '.' + temptable + '));'
+        if npoints > 1:             # make a line
+            sql = "INSERT INTO %s (filename, directory, mbformat, cruise_id, records, start_time, end_time, track)" % (fulltable)
+            sql = sql + ' VALUES (%s,%s,%s,%s,%s,%s,%s,(SELECT ST_MakeLine(tmp_point)::geography FROM ' + args.schema + '.' + temptable + '));'
+        elif npoints == 1:          # only one nav point
+            sql = "INSERT INTO %s (filename, directory, mbformat, cruise_id, records, start_time, end_time, track)" % (fulltable)
+            sql = sql + ' VALUES (%s,%s,%s,%s,%s,%s,%s,(SELECT tmp_point::geography FROM ' + args.schema + '.' + temptable + '));'
+        elif npoints == 0:          # no navigation - insert metadata only
+            sql = "INSERT INTO %s (filename, directory, mbformat, cruise_id, records, start_time, end_time)" % (fulltable)
+            sql = sql + ' VALUES (%s,%s,%s,%s,%s,%s,%s);'
         if args.verbose:
             print sql
         cur.execute(sql,(self.filename,self.dirname,self.format,self.cruiseid,self.records,self.starttime,self.endtime))
+            
+
         # conn.commit()
         # print "drop it!"
         # sql = 'DROP TABLE %s;' % (args.schema + '.' + temptable)
@@ -222,20 +232,6 @@ class Datafile(object):
             fields=line.split();
             t.write('%s %s\n' % (fields[7],fields[8]))
         t.seek(0)
-        # conn_string = "host=%s dbname=%s user=%s" % ( args.hostname, args.dbname, args.username )
-        # print "Connecting to database\n	->%s" % (conn_string)
-        # try:
-        #     conn = psycopg2.connect(conn_string)
-        #     cursor = conn.cursor()
-        #     print "Connected!\n"
-        # except:
-        #     exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
-        #     sys.exit("Database connection failed!\n ->%s" % (exceptionValue)) 
-
-        #        sql = "SELECT lon, lat, ST_AsText(tmp_point) FROM multibeam.tempfnv1234;"
-        #        print sql
-        #        cursor.execute(sql);
-        # cursor.execute("BEGIN;")
         sql = "DROP TABLE IF EXISTS %s;" % (fulltable)
         if args.verbose:
             print sql
@@ -253,7 +249,9 @@ class Datafile(object):
         if args.verbose:
             print sql
         cur.execute(sql);
-
+        t.seek(0)
+        return len(t.readlines())
+        f.close()
 
 # point parsing as a function, not a method.  Should there be a point class?
 def get_navpoint(line):

@@ -1,6 +1,6 @@
 MB utilities in python
 Author: Kelsey Jordahl <kjordahl@alum.mit.edu>
-Time-stamp: <Thu Dec  2 22:51:19 EST 2010>
+Time-stamp: <Sat Dec  4 13:40:16 EST 2010>
 
 This is an ALPHA version of MB utilities in python.  These utilities
 are written in Python to interact with multibeam bathymetry data and
@@ -40,27 +40,7 @@ subject to change):
 
 Use "mbnav2sql.py -h" for help and command line options.
 
-EXAMPLES:
-
-Add files to an existing database (see
-<http://blog.quaternio.net/2009/03/10/postgis-beginner-notes> or the
-PostGIS documentation for how to set up a new database named "gis_test"):
-
-% mbnav2sql.py -I datalist.mb-1 -v
-% psql -d gis_test
-gis_test=# SELECT COUNT (*) FROM multibeam.datafiles
- count 
--------
-    40
-(1 row)
-
-To show the number of files with more than 10,000 navigation points:
-gis_test=# SELECT COUNT (*) FROM multibeam.datafiles WHERE ST_NPoints(the_geom) > 10000;
-
-And to simplify those navigation points for faster computation and display
-(CAUTION: replaces full resolution navigation!):
-gis_test=# UPDATE multibeam.datafiles SET the_geom = ST_SimplifyPreserveTopology(the_geom,0.0001) WHERE ST_NPoints(the_geom) > 1000;
-
+See the EXAMPLES file for some usage possibilities.
 
 WARNING:
 
@@ -73,8 +53,15 @@ dangers of SQL injection attacks, please see <http://xkcd.com/327>.
 TODO: 
 
 - Improve security of SQL cursor commands
-- Improve efficiency of database insertion by using copy_from() to load .fnv files
+- Better error checking
+- Qgis 1.5 doesn't recognize GEOGRAPHY columns, and doesn't seem to
+  like GEOMETRY columns that contain multibple datatypes.  Qgis 1.6,
+  in my initial testing, couldn't read any columns at all (as of 2 Dec
+  2010).  Database structure more friendly for common tools would be good.
 - Represent actual data coverage (full swath) in addition to trackline
+- Tools for accessing multibeam data in the database.  Currently the
+  only way to interact with the database is directly through SQL
+  commands.
 - Link cruiseid to metadata for each cruise, ideally with automatic retrieval of
   metadata from archives such as
   http://www.marine-geo.org/tools/web_services.php
