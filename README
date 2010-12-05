@@ -1,6 +1,6 @@
 MB utilities in python
 Author: Kelsey Jordahl <kjordahl@alum.mit.edu>
-Time-stamp: <Sat Dec  4 13:40:16 EST 2010>
+Time-stamp: <Sun Dec  5 10:44:59 EST 2010>
 
 This is an ALPHA version of MB utilities in python.  These utilities
 are written in Python to interact with multibeam bathymetry data and
@@ -54,10 +54,14 @@ TODO:
 
 - Improve security of SQL cursor commands
 - Better error checking
-- Qgis 1.5 doesn't recognize GEOGRAPHY columns, and doesn't seem to
-  like GEOMETRY columns that contain multibple datatypes.  Qgis 1.6,
+- Filter egregiously bad navigation points.  More thorough
+  renavigation should be done with mbnavedit or other MB-System tools,
+  but database could be used to find navigation that needs to be
+  edited.
+- Qgis 1.5 doesn't recognize GEOGRAPHY columns.  Qgis 1.6,
   in my initial testing, couldn't read any columns at all (as of 2 Dec
   2010).  Database structure more friendly for common tools would be good.
+  Qgis 1.5 works well on the simplified GEOMETRY columns.
 - Represent actual data coverage (full swath) in addition to trackline
 - Tools for accessing multibeam data in the database.  Currently the
   only way to interact with the database is directly through SQL

@@ -8,7 +8,7 @@ Author: Kelsey Jordahl
 Version: alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Sat Dec  4 13:36:52 EST 2010>
+Time-stamp: <Sun Dec  5 10:15:09 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -35,6 +35,9 @@ import mb                               # MB tools for python
 def main(args):
     # precision for track simplification (~10 meters depending on latitude)
     dx = 0.0001  # degrees
+    fail = 0
+    if args.logfile:
+        err = open(args.logfile,'w')
     if args.verbose:
         print args
     print "hostname:", args.hostname
@@ -133,38 +136,39 @@ def main(args):
                 print "MB format:", d.format
             sql = ""
             d.sql(args,cursor)
-
-        # only insert into database if valid string was returned
-        tic = datetime.now()
-        if args.geom:
-            if args.verbose:
-                print "Updating geometry field..."
-            sql = 'UPDATE %s SET the_geom = ST_SimplifyPreserveTopology(track::geometry,%s);' % (fulltable, str(dx))
-            cursor.execute(sql);
-        if args.simplify:
-            if args.verbose:
-                print "Simplifying geography field...", "\n"
-            if args.geom:
-                # use GEOMETRY column recast back into GEOGRAPHY,
-                # since ST_Simplify does not work on GEOGRAPHY type anyway
-                sql = 'UPDATE %s SET track = the_geom::geography;' % (fulltable)
-            else:
-                # have to call ST_Simplify for GEOGRAPHY column
-                sql = 'UPDATE %s SET track = ST_SimplifyPreserveTopology(track::geometry,%s)::geography;' % (fulltable, str(dx))
-                                                
-            cursor.execute(sql);
-
+            if d.badsql:
+                fail += 1
+                if args.logfile:
+                    err.write(os.path.join(d.dirname,d.filename) + "\n")
+        # commit for each row - necessary because of temp table
         conn.commit()
         id += 1
+
+    # now update gemoetry column for all rows and simplify if requested
+    # note that this will be called for the full table, even if appending
+    if args.geom:
+        print "Updating geometry field..."
+        sql = 'UPDATE %s SET the_geom = ST_SimplifyPreserveTopology(track::geometry,%s);' % (fulltable, str(dx))
+        cursor.execute(sql);
+    if args.simplify:
+        print "Simplifying geography field...", "\n"
+        if args.geom:
+            # use GEOMETRY column recast back into GEOGRAPHY,
+            # since ST_Simplify does not work on GEOGRAPHY type anyway
+            sql = 'UPDATE %s SET track = the_geom::geography;' % (fulltable)
+        else:
+            # have to call ST_Simplify for GEOGRAPHY column
+            sql = 'UPDATE %s SET track = ST_SimplifyPreserveTopology(track::geometry,%s)::geography;' % (fulltable, str(dx))
+                                            
+        cursor.execute(sql);
 
     try:
         conn.commit()
         cursor.close()
         conn.close()
-        print "%d bad nav points ignored" % d.showbadnav()
+        print "%d datafiles failed" % fail
 
     except:
-        #        print datetime.combine(d, t), float(lon), float(lat)
         exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
         sys.exit("Barf!\n ->%s" % (exceptionValue)) 
 
@@ -185,6 +189,7 @@ if __name__ == '__main__':
     parser.add_argument('-u', '--username', dest='username', default='gis', help='postgreSQL username (default "gis")')
     parser.add_argument('-U', '--unprocessed', dest='unproc', action='store_true', help='Don''t use processed files (default will use processed datafiles if available)')
     parser.add_argument('-c', '--cruiseid', dest='cruiseid', default='auto', help='Manually set cruiseid string for all files.  Default "auto" will use the lowest level subdirectory containing each datafile as the cruise id.  Setting to "none" will leave the cruise id empty.')
+    parser.add_argument('-L', '--logfile', dest='logfile', default=None, help='File to log list of datafiles that fail (for debugging; default is None)')
     parser.add_argument('-I', '--datalist', dest='datalist', default='datalist.mb-1', help='MB datalist file (default "datalist.mb-1")')
     args = parser.parse_args()
     main(args)

@@ -9,10 +9,10 @@ Requirements: working PostgreSQL installation with PostGIS enabled
               MB-System <http://www.ldeo.columbia.edu/res/pi/MB-System>
 
 Author: Kelsey Jordahl
-Version: pre-alpha
+Version: alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Sat Dec  4 12:12:34 EST 2010>
+Time-stamp: <Sun Dec  5 09:58:40 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -56,6 +56,7 @@ class Datafile(object):
         self.procfile = None
         self.pars = None
         self.cruiseid = None
+        self.badsql = False             # flag for SQL error
         if os.path.exists(os.path.join(self.dirname,self.filename) + '.par'):
             self.parfile = self.filename + '.par'
         else:
@@ -198,15 +199,13 @@ class Datafile(object):
             sql = sql + ' VALUES (%s,%s,%s,%s,%s,%s,%s);'
         if args.verbose:
             print sql
-        cur.execute(sql,(self.filename,self.dirname,self.format,self.cruiseid,self.records,self.starttime,self.endtime))
-            
-
-        # conn.commit()
-        # print "drop it!"
-        # sql = 'DROP TABLE %s;' % (args.schema + '.' + temptable)
-        # cur.execute(sql)
-#        sql = "UPDATE %s SET track = ST_MakeLine(tmp_point) FROM %s;" % (fulltable, args.schema + '.' + temptable)
-#        c.execute(sql)
+        try:
+            cur.execute(sql,(self.filename,self.dirname,self.format,self.cruiseid,self.records,self.starttime,self.endtime))
+        except:
+            exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
+            print 'SQL Error: %s' % exceptionValue
+            print '%s not written to database' % self.filename
+            self.badsql = True
 
     def copy_nav(self,args,temptable,cur):
         """Copy the contents of the .fnv file associated with a
