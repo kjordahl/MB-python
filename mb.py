@@ -12,7 +12,7 @@ Author: Kelsey Jordahl
 Version: alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Sun Dec  5 09:58:40 EST 2010>
+Time-stamp: <Thu Dec  9 18:01:17 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -178,7 +178,7 @@ class Datafile(object):
         """
 
         fulltable = args.schema + "." + args.table # multibeam datalist table
-        temptable = 'tempfnv1234'  # name for temporary table storing nav points
+        temptable = 'tempfnv'  # name for temporary table storing nav points
 
         if self.procfile:
             datafile = self.procfile         # use processed file if available
@@ -190,10 +190,10 @@ class Datafile(object):
         # conn.commit()
         if npoints > 1:             # make a line
             sql = "INSERT INTO %s (filename, directory, mbformat, cruise_id, records, start_time, end_time, track)" % (fulltable)
-            sql = sql + ' VALUES (%s,%s,%s,%s,%s,%s,%s,(SELECT ST_MakeLine(tmp_point)::geography FROM ' + args.schema + '.' + temptable + '));'
+            sql = sql + ' VALUES (%s,%s,%s,%s,%s,%s,%s,(SELECT ST_MakeLine(tmp_point)::geography FROM ' + temptable + '));'
         elif npoints == 1:          # only one nav point
             sql = "INSERT INTO %s (filename, directory, mbformat, cruise_id, records, start_time, end_time, track)" % (fulltable)
-            sql = sql + ' VALUES (%s,%s,%s,%s,%s,%s,%s,(SELECT tmp_point::geography FROM ' + args.schema + '.' + temptable + '));'
+            sql = sql + ' VALUES (%s,%s,%s,%s,%s,%s,%s,(SELECT tmp_point::geography FROM ' + temptable + '));'
         elif npoints == 0:          # no navigation - insert metadata only
             sql = "INSERT INTO %s (filename, directory, mbformat, cruise_id, records, start_time, end_time)" % (fulltable)
             sql = sql + ' VALUES (%s,%s,%s,%s,%s,%s,%s);'
@@ -216,9 +216,10 @@ class Datafile(object):
         Temporary table will contain the following columns:
             lon FLOAT,
             lat FLOAT,
-            tmp_point POINT
+            tmp_point GEOMETRY (will contain POINTs)
+
+        Return the number of lines read.
         """
-        fulltable = args.schema + '.' + temptable
         try:
             f = open(os.path.join(self.dirname,self.fnvfile),'r')
         except:
@@ -231,20 +232,28 @@ class Datafile(object):
             fields=line.split();
             t.write('%s %s\n' % (fields[7],fields[8]))
         t.seek(0)
-        sql = "DROP TABLE IF EXISTS %s;" % (fulltable)
+        # Create a temporary table that will only last until the next commit
+        # not setting metadata with AddGeometryColumn
+        sql = 'CREATE TEMPORARY TABLE %s (id SERIAL PRIMARY KEY, lon FLOAT, lat FLOAT, tmp_point GEOMETRY) ON COMMIT DROP;' %  (temptable)
         if args.verbose:
             print sql
         cur.execute(sql);
-        sql = 'CREATE TABLE %s (id SERIAL PRIMARY KEY, lon FLOAT, lat FLOAT);' %  (fulltable)
+        # copy ASCII data from temp file
+        cur.copy_from(t, temptable, sep= ' ', columns=('lon','lat'))
+        # simple filtering of bad navigation points
+        # should be safe unless you have data on the Antartic continent:
+        sql = 'DELETE FROM %s WHERE lat < -85;' %  (temptable)
         if args.verbose:
             print sql
         cur.execute(sql);
-        sql = "SELECT AddGeometryColumn(%s,%s,'tmp_point','4326','GEOMETRY',2);"
+        # a lot of bad nav points are near zero.
+        # this would be a bad idea if you actually happen to have data
+        # with 0.1 degree of 0 latitude, 0 longitude
+        sql = 'DELETE FROM %s WHERE lat > -0.1 AND lat < 0.1 AND lon > -0.1 AND lon < 0.1;' %  (temptable)
         if args.verbose:
             print sql
-        cur.execute(sql,(args.schema,temptable));
-        cur.copy_from(t, fulltable, sep= ' ', columns=('lon','lat'))
-        sql = 'UPDATE %s SET tmp_point = ST_SetSRID(ST_MakePoint(lon,lat),4326);' %  (fulltable)
+        cur.execute(sql);
+        sql = 'UPDATE %s SET tmp_point = ST_SetSRID(ST_MakePoint(lon,lat),4326);' %  (temptable)
         if args.verbose:
             print sql
         cur.execute(sql);

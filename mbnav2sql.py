@@ -8,7 +8,7 @@ Author: Kelsey Jordahl
 Version: alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Sun Dec  5 10:15:09 EST 2010>
+Time-stamp: <Sun Dec  5 22:40:42 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -106,7 +106,6 @@ def main(args):
     lines = filter(None,lines)
     numfiles = len(lines)
     for line in lines:
-        sql = ""
         fields = line.split();
         if args.verbose:
             print "datalistline:", line
@@ -134,7 +133,6 @@ def main(args):
             if args.verbose:
                 print "Cruise ID:", d.cruiseid
                 print "MB format:", d.format
-            sql = ""
             d.sql(args,cursor)
             if d.badsql:
                 fail += 1
