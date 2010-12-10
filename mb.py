@@ -12,7 +12,7 @@ Author: Kelsey Jordahl
 Version: alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Thu Dec  9 18:01:17 EST 2010>
+Time-stamp: <Fri Dec 10 09:57:06 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -248,7 +248,7 @@ class Datafile(object):
         cur.execute(sql);
         # a lot of bad nav points are near zero.
         # this would be a bad idea if you actually happen to have data
-        # with 0.1 degree of 0 latitude, 0 longitude
+        # within 0.1 degree of 0 latitude, 0 longitude
         sql = 'DELETE FROM %s WHERE lat > -0.1 AND lat < 0.1 AND lon > -0.1 AND lon < 0.1;' %  (temptable)
         if args.verbose:
             print sql
@@ -257,8 +257,10 @@ class Datafile(object):
         if args.verbose:
             print sql
         cur.execute(sql);
-        t.seek(0)
-        return len(t.readlines())
+        # count the actual lines in temp table (after filtering)
+        cur.execute("SELECT COUNT(*) FROM %s;" % (temptable))
+        (count,) = cur.fetchone()
+        return count
         f.close()
 
 # point parsing as a function, not a method.  Should there be a point class?
