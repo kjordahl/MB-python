@@ -12,7 +12,7 @@ Author: Kelsey Jordahl
 Version: alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Fri Dec 10 09:57:06 EST 2010>
+Time-stamp: <Fri Dec 10 11:22:36 EST 2010>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -33,6 +33,8 @@ import os
 import re
 import argparse
 import psycopg2
+from urllib2 import urlopen
+import xml.etree.ElementTree as ElementTree
 from datetime import datetime, date, time
 import tempfile
 
@@ -263,40 +265,76 @@ class Datafile(object):
         return count
         f.close()
 
-# point parsing as a function, not a method.  Should there be a point class?
-def get_navpoint(line):
-    """ Parse a line of .fnv file to return longitude, latitude
+class Cruise(object):
+    """Class for a cruise.
 
-    (currently does not return timestamp for each point, but it could)
-
+    Contains metadata, which may be retreived from centralized repositories.
     """
-    
-    t = 0                               # no timestamp (faster parsing)
-    fields=line.split();
-    if len(fields)>9:               # minimal error checking
-        if t:                       # get timestamp
-            year=int(fields[0])
-            month=int(fields[1])
-            day=int(fields[2])
-            hour=int(fields[3])
-            minute=int(fields[4])
-            second=int(fields[5].floor)
-            microsecond=(float(fields[5])-second)*1e6
-            d = date(year, month, day)
-            t = time(hour, minute, second, microsecond)
-            t = datetime.combine(d, t)
+    def __init__(self,cruiseid):
+        """By default a new instance of Cruise will contain the
+        cruise_id only.
+        """
 
-        # TODO?: could switch to just sending string lat/lon for efficiency,
-        #        but would lose ability to filter valid nav points
-        #        and would be a potential security issue in SQL query
-        lon=float(fields[7])
-        if lon > 180:                   # wrap hemisphere
-            lon = lon - 360
-        lat=float(fields[8])
-        return (lat, lon, t)
-    else:
-        print len(fields), fields
-        return ()
+        self.cruiseid = cruiseid
+        self.mgds_doc = None
+
+    def mgds(self):
+        """Get metadata from Marine Geoscience Data System (MGDS)
+        at Lamont-Doherty Earth Observatory (LDEO).
+
+            http://www.marine-geo.org
+
+        Updates an ElementTree document tree with contents of retreived XML
+        """
+        baseurl = 'http://www.marine-geo.org/services/getCollection/?id='
+        u = urlopen(baseurl + self.cruiseid)
+        data = u.read()
+        if len(data) < 30:                  # returned almost empty XML
+            self.mgds_doc = None
+        else:
+            try:
+                self.mgds_doc = ElementTree.fromstring(data)
+            except:
+                self.mgds_doc = None
+
+    @property
+    def platform(self):
+        """Return platform (vessel) name for cruise.
+        Depends on MGDS metadata already having been read.
+        """
+        if self.mgds_doc is not None:
+            try:
+                return self.mgds_doc.find('platform/name').text
+            except:
+                return None
+
+    @property
+    def project(self):
+        """Return project name for cruise.
+        Depends on MGDS metadata already having been read.
+        """
+        if self.mgds_doc is not None:
+            try:
+                return self.mgds_doc.find('projects/project/name').text
+            except:
+                return None
+
+    @property
+    def ports(self):
+        """Return ports for cruise in a list.
+        Most often will be two ports, but may be more.
+        Depends on MGDS metadata already having been read.
+        """
+        if self.mgds_doc is not None:
+            ports = [];                 # empty list
+            try:
+                locs = self.mgds_doc.findall('locations/location')
+                for loc in locs:
+                    ports.append(loc.find('id').text)
+                return ports        # num ports
+            
+            except:
+                return None
 
 # main() for testing purposes only
 def main(args):
