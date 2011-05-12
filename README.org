@@ -47,8 +47,8 @@ See the ~EXAMPLES~ file for some usage possibilities.
 An example of reading metadata for entire cruises from a public
 repository can be seen in the program ~mbcruisemeta.py~.
 
-Author: Kelsey Jordahl ~kjordahl@alum.mit.edu~
-Time-stamp: <Wed May 11 16:20:16 EDT 2011>
+Author: Kelsey Jordahl ~kjordahl@alum.mit.edu~ \\
+Time-stamp: <Thu May 12 11:42:31 EDT 2011>
 
 * WARNING
 
@@ -56,7 +56,7 @@ Although some checking is done on input, PostgreSQL communication is
 currently not done in an entirely secure manner.  DO NOT USE with a
 production database or with any important data unless you are SURE
 exactly what you are doing.  For more information on the potential
-dangers of SQL injection attacks, please see <http://xkcd.com/327>.
+dangers of SQL injection attacks, please see [[http://xkcd.com/327]].
 
 * TODO
 
