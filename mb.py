@@ -12,7 +12,7 @@ Author: Kelsey Jordahl
 Version: alpha
 Copyright: Kelsey Jordahl 2010
 License: GPLv3
-Time-stamp: <Fri Dec 10 11:22:36 EST 2010>
+Time-stamp: <Fri Jun 17 12:26:54 EDT 2011>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -129,10 +129,10 @@ class Datafile(object):
         self.format = int(format)
 
     def badnavpoint(self):
-        Datafile.badnav += 1
+        self.badnav += 1
 
     def showbadnav(self):
-        return Datafile.badnav
+        return self.badnav
 
     def useproc(self):
         """Use processed datafiles for future operations if available.
